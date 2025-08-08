@@ -1,0 +1,9 @@
+node_modules
+dist
+.env
+uploads
+extracted
+data
+minio-data
+temp_ocr
+temp_chunks
