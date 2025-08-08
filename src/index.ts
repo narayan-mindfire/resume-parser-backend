@@ -3,7 +3,8 @@ import cors from "cors";
 import router from "./routes";
 import rateLimit from "express-rate-limit";
 import errorHandler from "./middlewares/errorHandler";
-
+import dotenv from "dotenv";
+dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5003;
 const limiter = rateLimit({
@@ -26,14 +27,10 @@ app.use(
 app.use(express.json());
 app.use(limiter);
 
-app.get("/test", (req, res) => {
-  console.log("test route");
-  res.send("test route working");
-});
 app.use("/api/v1", router);
 
 app.use(errorHandler);
 
 app.listen(PORT, () => {
-  console.log(`Server is running at http://localhost:${PORT}`);
+  // console.log(`Server is running at http://localhost:${PORT}`);
 });

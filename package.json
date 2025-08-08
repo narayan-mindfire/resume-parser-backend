@@ -34,6 +34,7 @@
     "adm-zip": "^0.5.16",
     "bullmq": "^5.56.9",
     "cors": "^2.8.5",
+    "dotenv": "^17.2.1",
     "express": "^5.1.0",
     "express-async-handler": "^1.2.0",
     "express-rate-limit": "^8.0.1",
