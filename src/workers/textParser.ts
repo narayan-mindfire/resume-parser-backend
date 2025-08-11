@@ -17,12 +17,26 @@ function sanitizeFilename(filename: string): string {
 
 // --- The BullMQ Processor Function ---
 export const processor = async (job: Job<TextParsingJob>) => {
-  const { fileName } = job.data;
+  const { fileName, uploadId, trackingKey } = job.data;
+
   let resumeId: string | null = null;
+
   const sanitizedFileName = sanitizeFilename(fileName);
 
   try {
     // Get raw text from Redis
+    await redisClient.set(
+      `status:${trackingKey}`,
+      JSON.stringify({
+        fileName,
+        uploadId,
+        status: "parsing-text",
+        timestamp: Date.now(),
+      }),
+      "EX",
+      24 * 60 * 60,
+    );
+
     const raw = await redisClient.get(`ocr:${fileName}`);
     if (!raw) {
       throw new Error(`No OCR data found for ${fileName}`);
@@ -81,8 +95,36 @@ export const processor = async (job: Job<TextParsingJob>) => {
       `Successfully parsed and stored resume for ${sanitizedFileName} in PostgreSQL.`,
     );
 
-    // Clean up the temporary OCR data from Redis.
+    await redisClient.set(
+      `status:${trackingKey}`,
+      JSON.stringify({
+        fileName,
+        uploadId,
+        status: "completed",
+        resumeId,
+        timestamp: Date.now(),
+      }),
+      "EX",
+      24 * 60 * 60,
+    );
+
+    // clean up temporary OCR data from Redis.
     await redisClient.del(`ocr:${fileName}`);
+
+    // Publish notification with uploadId for Socket.io routing
+    await redisClient.publish(
+      "job-updates",
+      JSON.stringify({
+        jobId: job.id,
+        fileName: sanitizedFileName,
+        uploadId,
+        trackingKey,
+        status: "completed",
+        resumeId: resumeId,
+        data: parsed,
+        timestamp: Date.now(),
+      }),
+    );
 
     return parsed;
   } catch (error) {
@@ -101,6 +143,34 @@ export const processor = async (job: Job<TextParsingJob>) => {
         error instanceof Error ? error.message : "Unknown error",
         resumeId,
       ]);
+
+      await redisClient.set(
+        `status:${trackingKey}`,
+        JSON.stringify({
+          fileName,
+          uploadId,
+          status: "failed",
+          error: error instanceof Error ? error.message : "Unknown error",
+          resumeId,
+          timestamp: Date.now(),
+        }),
+        "EX",
+        24 * 60 * 60,
+      );
+
+      await redisClient.publish(
+        "job-updates",
+        JSON.stringify({
+          jobId: job?.id,
+          fileName: sanitizedFileName,
+          uploadId,
+          trackingKey,
+          status: "failed",
+          error: error instanceof Error ? error.message : "Unknown error",
+          resumeId: resumeId,
+          timestamp: Date.now(),
+        }),
+      );
     }
 
     throw error;
@@ -120,7 +190,7 @@ export const textParsingWorker = new Worker<TextParsingJob>(
 );
 
 // Worker Event Handling
-textParsingWorker.on("completed", (job, result) => {
+textParsingWorker.on("completed", (job, _result) => {
   console.log(`Job ${job.id} for ${job.data.fileName} completed successfully.`);
 });
 

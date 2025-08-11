@@ -1,5 +1,7 @@
 export interface TextParsingJob {
   fileName: string;
+  uploadId: string;
+  trackingKey: string;
 }
 
 export interface ParsedResume {

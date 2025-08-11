@@ -74,7 +74,7 @@ function extractSkills(text: string): string[] {
     .split(/(?:skills|technologies|proficiencies):/)[1];
   if (skillsSection) {
     const skillsBlock = skillsSection.split(
-      /(?:experience|education|projects):/
+      /(?:experience|education|projects):/,
     )[0];
     if (skillsBlock) {
       skillsBlock.split(/[\n,•·\-—;]+/).forEach((skill) => {
@@ -158,7 +158,7 @@ function extractExperience(text: string): string[] {
     // Extract experience entries from the section
     const experienceLines = lines.slice(
       experienceStartIndex + 1,
-      experienceEndIndex
+      experienceEndIndex,
     );
 
     for (const line of experienceLines) {
@@ -174,7 +174,7 @@ function extractExperience(text: string): string[] {
       // Skip lines that are only dates
       if (
         /^(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{4}\s*-/i.test(
-          line
+          line,
         )
       ) {
         continue;
@@ -185,11 +185,11 @@ function extractExperience(text: string): string[] {
         // Check if line contains company/position indicators
         const hasCompanyIndicators =
           /\b(intern|developer|engineer|manager|lead|analyst|consultant|specialist|coordinator|assistant|officer|executive|director|founder|ceo|cto|senior|junior|llp|ltd|inc|corp|company|technologies|solutions|systems|digital|software|volunteer)\b/i.test(
-            line
+            line,
           );
         const hasDatePattern =
           /\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{4}|\d{4}\s*-\s*(\d{4}|present)/i.test(
-            line
+            line,
           );
 
         // Include lines that have either company indicators or date patterns
