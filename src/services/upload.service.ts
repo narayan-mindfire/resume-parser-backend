@@ -56,12 +56,14 @@ export const processChunkUpload = async (req: Request, res: Response) => {
   fs.unlinkSync(outputPath);
 
   const urls: string[] = [];
+  const fileList: string[] = [];
   const bucketExists = await minioClient.bucketExists(bucketName);
   if (!bucketExists) await minioClient.makeBucket(bucketName);
 
   for (const file of extractedFiles) {
     const filePath = path.join(extractTo, file);
     const objectName = `${uploadId}/${file}`;
+    const trackingKey = `${uploadId}:${file}`;
 
     await minioClient.fPutObject(bucketName, objectName, filePath);
 
@@ -73,15 +75,35 @@ export const processChunkUpload = async (req: Request, res: Response) => {
     );
 
     urls.push(presignedUrl);
+    fileList.push(file);
 
     await redisClient.set(
       `file:${presignedUrl}`,
-      JSON.stringify({ status: "uploaded", timestamp: Date.now() }),
+      JSON.stringify({
+        status: "uploaded",
+        timestamp: Date.now(),
+        trackingKey,
+      }),
+    );
+
+    // Store file status for tracking
+    await redisClient.set(
+      `status:${trackingKey}`,
+      JSON.stringify({
+        fileName: file,
+        uploadId,
+        status: "uploaded",
+        timestamp: Date.now(),
+      }),
+      "EX",
+      24 * 60 * 60,
     );
 
     await fileProcessingQueue.add("processFile", {
       fileName: file,
       minioPath: objectName,
+      uploadId,
+      trackingKey,
     });
 
     fs.unlinkSync(filePath);
@@ -90,5 +112,8 @@ export const processChunkUpload = async (req: Request, res: Response) => {
   return res.status(200).json({
     message: "Upload, extraction, and upload to MinIO complete",
     files: urls,
+    uploadId,
+    fileList,
+    totalFiles: extractedFiles.length,
   });
 };

@@ -7,9 +7,11 @@ import { exec } from "child_process";
 import pdf from "pdf-parse";
 import { textParsingQueue } from "../queues/textParsingQueue";
 
-interface FileProcessingJob {
+export interface FileProcessingJob {
   fileName: string;
   minioPath: string;
+  uploadId: string;
+  trackingKey: string;
 }
 
 async function runOCR(imagePath: string, tempDir: string): Promise<string> {
@@ -28,8 +30,20 @@ async function runOCR(imagePath: string, tempDir: string): Promise<string> {
 }
 
 export const processor = async (job: Job<FileProcessingJob>) => {
-  const { fileName, minioPath } = job.data;
+  const { fileName, minioPath, uploadId, trackingKey } = job.data;
   console.log(`Start processing: ${fileName}`);
+
+  await redisClient.set(
+    `status:${trackingKey}`,
+    JSON.stringify({
+      fileName,
+      uploadId,
+      status: "processing-ocr",
+      timestamp: Date.now(),
+    }),
+    "EX",
+    24 * 60 * 60,
+  );
 
   const tempDir = path.join(__dirname, "../../temp_ocr");
   if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
@@ -48,13 +62,24 @@ export const processor = async (job: Job<FileProcessingJob>) => {
     });
   } catch (err) {
     console.error("Error fetching file from MinIO:", err);
+    await redisClient.set(
+      `status:${trackingKey}`,
+      JSON.stringify({
+        fileName,
+        uploadId,
+        status: "failed",
+        error: "Failed to download from MinIO",
+        timestamp: Date.now(),
+      }),
+      "EX",
+      24 * 60 * 60,
+    );
     return;
   }
   console.log(`Downloaded to ${localFilePath}`);
 
   let fullText = "";
 
-  // Handle PDF files first
   if (fileName.toLowerCase().endsWith(".pdf")) {
     try {
       const pdfBuffer = fs.readFileSync(localFilePath);
@@ -88,14 +113,37 @@ export const processor = async (job: Job<FileProcessingJob>) => {
       }
     } catch (err) {
       console.error("Error processing PDF:", err);
+      await redisClient.set(
+        `status:${trackingKey}`,
+        JSON.stringify({
+          fileName,
+          uploadId,
+          status: "failed",
+          error: "OCR processing failed",
+          timestamp: Date.now(),
+        }),
+        "EX",
+        24 * 60 * 60,
+      );
       return;
     }
   } else {
-    // For image files directly
     try {
       fullText = await runOCR(localFilePath, tempDir);
     } catch (err) {
       console.error("Error running OCR on image:", err);
+      await redisClient.set(
+        `status:${trackingKey}`,
+        JSON.stringify({
+          fileName,
+          uploadId,
+          status: "failed",
+          error: "OCR processing failed",
+          timestamp: Date.now(),
+        }),
+        "EX",
+        24 * 60 * 60,
+      );
       return;
     }
   }
@@ -107,13 +155,30 @@ export const processor = async (job: Job<FileProcessingJob>) => {
     JSON.stringify({ text: fullText, processedAt: Date.now() }),
   );
 
+  await redisClient.set(
+    `status:${trackingKey}`,
+    JSON.stringify({
+      fileName,
+      uploadId,
+      status: "ocr-completed",
+      timestamp: Date.now(),
+    }),
+    "EX",
+    24 * 60 * 60,
+  );
+
   // Cleanup
   fs.readdirSync(tempDir)
     .filter((f) => f.startsWith(baseName))
     .forEach((f) => fs.unlinkSync(path.join(tempDir, f)));
 
   console.log(`Finished processing: ${fileName}`);
-  await textParsingQueue.add("parse-text", { fileName });
+
+  await textParsingQueue.add("parse-text", {
+    fileName,
+    uploadId,
+    trackingKey,
+  });
 };
 
 new Worker<FileProcessingJob>("file-processing", processor, {

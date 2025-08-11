@@ -11,7 +11,7 @@ const pool = new Pool({
   connectionTimeoutMillis: 2000,
 });
 
-pool.on("connect", (client: PoolClient) => {
+pool.on("connect", (_client: PoolClient) => {
   console.log("New PostgreSQL client connected");
 });
 
