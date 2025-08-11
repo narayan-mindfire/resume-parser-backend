@@ -7,6 +7,7 @@ import dotenv from "dotenv";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import redisClient from "./config/redisClient";
+import { jobMatchingQueue } from "./queues/jobMatchingQueue";
 
 dotenv.config();
 
@@ -56,6 +57,11 @@ io.on("connection", (socket) => {
     console.log(`Client joined upload room: ${uploadId}`);
   });
 
+  socket.on("join-match", (trackingKey: string) => {
+    socket.join(trackingKey);
+    console.log(`Client joined job matching room: ${trackingKey}`);
+  });
+
   socket.on("disconnect", () => {
     console.log("Client disconnected:", socket.id);
   });
@@ -63,11 +69,13 @@ io.on("connection", (socket) => {
 
 const subscriber = redisClient.duplicate();
 subscriber.subscribe("job-updates");
+subscriber.subscribe("job-matches");
 
 subscriber.on("message", (channel, message) => {
-  if (channel === "job-updates") {
-    try {
-      const notification = JSON.parse(message);
+  try {
+    const notification = JSON.parse(message);
+
+    if (channel === "job-updates") {
       const { uploadId, status, fileName, resumeId, data, error, trackingKey } =
         notification;
 
@@ -83,13 +91,22 @@ subscriber.on("message", (channel, message) => {
           timestamp: Date.now(),
           ...(status === "completed" ? { data } : { error }),
         };
-
         console.log(`Broadcasting ${eventType} to upload room: ${uploadId}`);
         io.to(uploadId).emit(eventType, eventData);
       }
-    } catch (error) {
-      console.error("Error parsing notification message:", error);
+    } else if (channel === "job-matches") {
+      const { trackingKey, matchResult, resumeId } = notification;
+      if (trackingKey) {
+        console.log(`Broadcasting job-matched to room: ${trackingKey}`);
+        io.to(trackingKey).emit("job-matched", {
+          resumeId,
+          matchResult,
+          timestamp: Date.now(),
+        });
+      }
     }
+  } catch (error) {
+    console.error("Error parsing notification message:", error);
   }
 });
 
