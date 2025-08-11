@@ -7,5 +7,5 @@ import asyncHandler from "express-async-handler";
 export const handleZipUpload = asyncHandler(
   async (req: Request, res: Response) => {
     await processChunkUpload(req, res);
-  }
+  },
 );

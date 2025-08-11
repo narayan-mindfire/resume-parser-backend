@@ -5,7 +5,7 @@ import path from "path";
 export const extractZipEntries = (
   zipFilePath: string,
   extractTo: string,
-  validExtensions: string[]
+  validExtensions: string[],
 ): string[] => {
   const zip = new AdmZip(zipFilePath);
   const extractedFiles: string[] = [];
@@ -15,7 +15,7 @@ export const extractZipEntries = (
     if (!entry.isDirectory && validExtensions.includes(ext)) {
       const extractedPath = path.join(
         extractTo,
-        path.basename(entry.entryName)
+        path.basename(entry.entryName),
       );
       fs.writeFileSync(extractedPath, entry.getData());
       extractedFiles.push(path.basename(entry.entryName));

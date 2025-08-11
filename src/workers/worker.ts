@@ -1,1 +1,2 @@
 import "./fileProcessor";
+import "./textParser";

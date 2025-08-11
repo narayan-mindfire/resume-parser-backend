@@ -7,7 +7,7 @@ const errorHandler = (
   err: Error,
   _req: Request,
   res: Response,
-  _next: NextFunction
+  _next: NextFunction,
 ): void => {
   const statusCode = res.statusCode !== 200 ? res.statusCode : 500;
   const message = err.message;

@@ -51,7 +51,7 @@ export const processChunkUpload = async (req: Request, res: Response) => {
   const extractedFiles = extractZipEntries(
     outputPath,
     extractTo,
-    validExtensions
+    validExtensions,
   );
   fs.unlinkSync(outputPath);
 
@@ -69,14 +69,14 @@ export const processChunkUpload = async (req: Request, res: Response) => {
       "GET",
       bucketName,
       objectName,
-      24 * 60 * 60 * 5
+      24 * 60 * 60 * 5,
     );
 
     urls.push(presignedUrl);
 
     await redisClient.set(
       `file:${presignedUrl}`,
-      JSON.stringify({ status: "uploaded", timestamp: Date.now() })
+      JSON.stringify({ status: "uploaded", timestamp: Date.now() }),
     );
 
     await fileProcessingQueue.add("processFile", {
