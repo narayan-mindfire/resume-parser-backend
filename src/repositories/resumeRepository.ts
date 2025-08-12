@@ -1,3 +1,4 @@
+import { UUID } from "crypto";
 import pool from "../config/db";
 
 export interface ResumeInsert {
@@ -26,25 +27,16 @@ export const ResumeRepository = {
     return result.rows[0];
   },
 
-  async updateStatus(resumeId: number, status: string) {
-    const result = await pool.query(
-      `UPDATE resumes SET status = $1 WHERE resume_id = $2 RETURNING *`,
-      [status, resumeId],
-    );
-    return result.rows[0];
-  },
-
-  async findById(resumeId: number) {
-    const result = await pool.query(
-      `SELECT * FROM resumes WHERE resume_id = $1`,
-      [resumeId],
-    );
+  async findById(resumeId: UUID) {
+    const result = await pool.query(`SELECT * FROM resumes WHERE Id = $1`, [
+      resumeId,
+    ]);
     return result.rows[0];
   },
 
   async findAll() {
     const result = await pool.query(
-      `SELECT * FROM resumes ORDER BY uploaded_at DESC`,
+      `SELECT * FROM resumes ORDER BY updated_at DESC`,
     );
     return result.rows;
   },

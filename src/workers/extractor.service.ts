@@ -13,7 +13,6 @@ import {
  * @returns {string | null} The extracted name or null if not found.
  */
 function extractName(text: string): string | null {
-  // Basic extraction from the first few lines
   const lines = text
     .split("\n")
     .map((l) => l.trim())
@@ -21,7 +20,6 @@ function extractName(text: string): string | null {
   const potentialNames = lines
     .slice(0, 5)
     .map((line) => {
-      // Try to find a line that looks like a name (e.g., "John Doe")
       if (/^[A-Z][a-z]+(?:\s+[A-Z][a-z]*){1,3}$/.test(line)) {
         return line;
       }
@@ -29,11 +27,8 @@ function extractName(text: string): string | null {
     })
     .filter(Boolean);
 
-  // Fallback to NLP if no clear name is found
   if (potentialNames.length > 0) return potentialNames[0];
 
-  // Using compromise for more advanced name extraction
-  // This is useful if the resume doesn't have a clear name on the first few lines
   const doc = nlp(text);
   const people = doc.people().out("array");
   return people.length > 0 ? people[0] : null;
@@ -68,7 +63,6 @@ function extractPhone(text: string): string | null {
 function extractSkills(text: string): string[] {
   const foundSkills = new Set<string>();
 
-  // Search for skills in specific sections
   const skillsSection = text
     .toLowerCase()
     .split(/(?:skills|technologies|proficiencies):/)[1];
@@ -86,7 +80,6 @@ function extractSkills(text: string): string[] {
     }
   }
 
-  // Search for skills anywhere in the document
   skillKeywords.forEach((keyword) => {
     if (text.toLowerCase().includes(keyword)) {
       foundSkills.add(keyword);
@@ -129,7 +122,6 @@ function extractExperience(text: string): string[] {
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
 
-  // Find the experience section boundaries
   let experienceStartIndex = -1;
   let experienceEndIndex = lines.length;
 
@@ -138,7 +130,6 @@ function extractExperience(text: string): string[] {
   const sectionHeaders =
     /^(education|skills|technical skills|projects|achievements|certifications|awards|profiles)$/i;
 
-  // Find experience section start
   for (let i = 0; i < lines.length; i++) {
     if (experienceHeaders.test(lines[i])) {
       experienceStartIndex = i;
@@ -146,7 +137,6 @@ function extractExperience(text: string): string[] {
     }
   }
 
-  // If experience section found, find its end
   if (experienceStartIndex !== -1) {
     for (let i = experienceStartIndex + 1; i < lines.length; i++) {
       if (sectionHeaders.test(lines[i])) {
@@ -162,7 +152,6 @@ function extractExperience(text: string): string[] {
     );
 
     for (const line of experienceLines) {
-      // Skip bullet points, descriptions, and empty lines
       if (
         line.startsWith("•") ||
         line.startsWith("-") ||
@@ -171,7 +160,6 @@ function extractExperience(text: string): string[] {
         continue;
       }
 
-      // Skip lines that are only dates
       if (
         /^(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{4}\s*-/i.test(
           line,
@@ -180,9 +168,7 @@ function extractExperience(text: string): string[] {
         continue;
       }
 
-      // Look for job titles and company names (meaningful experience entries)
       if (line.length > 10) {
-        // Check if line contains company/position indicators
         const hasCompanyIndicators =
           /\b(intern|developer|engineer|manager|lead|analyst|consultant|specialist|coordinator|assistant|officer|executive|director|founder|ceo|cto|senior|junior|llp|ltd|inc|corp|company|technologies|solutions|systems|digital|software|volunteer)\b/i.test(
             line,
@@ -192,7 +178,6 @@ function extractExperience(text: string): string[] {
             line,
           );
 
-        // Include lines that have either company indicators or date patterns
         if (hasCompanyIndicators || hasDatePattern) {
           foundExperience.add(line);
         }
