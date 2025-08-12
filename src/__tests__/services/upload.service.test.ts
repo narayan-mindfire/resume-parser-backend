@@ -117,4 +117,88 @@ describe("processChunkUpload", () => {
     ).rejects.toThrow("Missing required fields");
     expect(mockStatus).toHaveBeenCalledWith(400);
   });
+  test("should process final chunk, extract files, upload to MinIO, store in Redis, and enqueue jobs", async () => {
+    // Make it the last chunk
+    mockRequest.body = {
+      uploadId: "test-upload-id",
+      chunkIndex: "0",
+      totalChunks: "1",
+      fileName: "test.zip",
+    };
+
+    const mockWrite = jest.fn();
+    (fs.createWriteStream as jest.Mock).mockReturnValue({
+      write: mockWrite,
+      end: jest.fn(),
+    });
+
+    (minioClient.bucketExists as jest.Mock).mockResolvedValue(false);
+
+    await processChunkUpload(mockRequest as Request, mockResponse as Response);
+
+    expect(fs.existsSync).toHaveBeenCalledWith(
+      expect.stringContaining("temp_chunks/test-upload-id"),
+    );
+    expect(fs.mkdirSync).toHaveBeenCalled();
+
+    expect(fs.readFileSync).toHaveBeenCalledWith(expect.stringContaining("0"));
+    expect(mockWrite).toHaveBeenCalledWith(Buffer.from("mock chunk data"));
+
+    expect(fs.unlinkSync).toHaveBeenCalledWith(expect.stringContaining("0"));
+    expect(fs.rmSync).toHaveBeenCalledWith(
+      expect.stringContaining("temp_chunks/test-upload-id"),
+      { recursive: true, force: true },
+    );
+
+    expect(extractZipEntries).toHaveBeenCalledWith(
+      expect.stringContaining("uploads/test.zip"),
+      expect.stringContaining("extracted"),
+      validExtensions,
+    );
+
+    expect(minioClient.bucketExists).toHaveBeenCalledWith(bucketName);
+    expect(minioClient.makeBucket).toHaveBeenCalledWith(bucketName);
+
+    for (const file of ["file1.pdf", "file2.jpg"]) {
+      expect(minioClient.fPutObject).toHaveBeenCalledWith(
+        bucketName,
+        expect.stringContaining(file),
+        expect.stringContaining(file),
+      );
+
+      expect(minioClient.presignedUrl).toHaveBeenCalledWith(
+        "GET",
+        bucketName,
+        expect.stringContaining(file),
+        24 * 60 * 60 * 5,
+      );
+
+      expect(redisClient.set).toHaveBeenCalledWith(
+        expect.stringContaining("file:http://mock.minio.url/file.zip"),
+        expect.any(String),
+      );
+
+      expect(redisClient.set).toHaveBeenCalledWith(
+        expect.stringContaining(`status:test-upload-id:${file}`),
+        expect.any(String),
+        "EX",
+        24 * 60 * 60,
+      );
+
+      expect(fileProcessingQueue.add).toHaveBeenCalledWith(
+        "processFile",
+        expect.objectContaining({ fileName: file }),
+      );
+    }
+
+    expect(mockStatus).toHaveBeenCalledWith(200);
+    expect(mockJson).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: "Upload, extraction, and upload to MinIO complete",
+        files: expect.any(Array),
+        fileList: ["file1.pdf", "file2.jpg"],
+        totalFiles: 2,
+      }),
+    );
+  });
 });

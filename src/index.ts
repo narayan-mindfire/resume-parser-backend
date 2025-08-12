@@ -7,7 +7,6 @@ import dotenv from "dotenv";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import redisClient from "./config/redisClient";
-import { jobMatchingQueue } from "./queues/jobMatchingQueue";
 
 dotenv.config();
 
