@@ -8,7 +8,12 @@ module.exports = {
   preset: "ts-jest",
   testMatch: ["**/__tests__/**/*.test.ts"],
   setupFilesAfterEnv: ["<rootDir>/src/__tests__/setup.ts"],
-  modulePathIgnorePatterns: ["<rootDir>/dist/"],
+  coveragePathIgnorePatterns: [
+    "<rootDir>/generated/",
+    "<rootDir>/src/repositories/",
+  ],
+  modulePathIgnorePatterns: ["<rootDir>/dist/", "<rootDir>/.*/generated"],
+
   transform: {
     ...tsJestTransformCfg,
   },

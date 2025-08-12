@@ -14,6 +14,8 @@ export default [
       "node_modules/**/*",
       "src/__tests__/**/*",
       "jest.config.js",
+      "/coverage/",
+      "generated",
     ],
   },
 

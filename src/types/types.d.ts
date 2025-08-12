@@ -1,4 +1,6 @@
+import { User } from "../generated/prisma";
 import { UUID } from "crypto";
+import { Request } from "express";
 
 export interface Resume {
   Id: UUID;
@@ -19,4 +21,8 @@ export interface JobType {
   description: string;
   skills: string[];
   required_experience_years: number;
+}
+
+export interface AuthRequest extends Request {
+  user: Omit<User, "password">;
 }
