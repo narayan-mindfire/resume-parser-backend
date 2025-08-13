@@ -7,6 +7,7 @@ import dotenv from "dotenv";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import redisClient from "./config/redisClient";
+import cookieParser from "cookie-parser";
 
 dotenv.config();
 
@@ -44,10 +45,10 @@ app.use(
 
 app.use(express.json());
 app.use(limiter);
+app.use(cookieParser());
 app.use("/api/v1", router);
 app.use(errorHandler);
 
-// Socket.io connection handling
 io.on("connection", (socket) => {
   console.log("Client connected:", socket.id);
 

@@ -16,7 +16,9 @@ interface JwtPayload {
  */
 export const protect = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
+    console.log("protected route only");
     const token = req.cookies.accessToken;
+    console.log("token found: ", token);
     if (!token) {
       res.status(401);
       throw new Error("Not authorized, no token found");

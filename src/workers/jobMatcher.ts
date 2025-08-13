@@ -1,9 +1,9 @@
 import { Worker, Job } from "bullmq";
 import redisClient from "../config/redisClient";
-import pool from "../config/db";
 import { JOBS } from "../constants/jobDescription";
-import { Resume } from "../types/types";
+import { Resume } from "../../generated/prisma";
 import { JobType } from "../types/types";
+import { resumeRepository } from "../repositories/resumeRepository";
 
 function calculateMatchScore(resume: Resume, job: JobType) {
   let score = 0;
@@ -17,13 +17,13 @@ function calculateMatchScore(resume: Resume, job: JobType) {
   score += skillsScore;
 
   const expRequired = job.required_experience_years || 0;
-  const expCandidate = parseFloat(resume.total_experience_years) || 0;
+  const expCandidate = Number(resume.totalExperienceYears ?? 0);
   const expScore =
     expRequired > 0 ? Math.min((expCandidate / expRequired) * 20, 20) : 20;
   score += expScore;
 
   const jobKeywords = job.description.toLowerCase().split(/\W+/);
-  const resumeText = (resume.raw_text || "").toLowerCase();
+  const resumeText = (resume.rawText || "").toLowerCase();
   const matchedKeywords = jobKeywords.filter((k) => resumeText.includes(k));
   const keywordScore = Math.min(
     (matchedKeywords.length / jobKeywords.length) * 10,
@@ -54,15 +54,11 @@ export const matcherProcessor = async (
       throw new Error(`Job with id ${jobId} not found`);
     }
 
-    // Get Resume from DB
-    const res = await pool.query("SELECT * FROM resumes WHERE id = $1", [
-      resumeId,
-    ]);
-    if (res.rows.length === 0) {
-      throw new Error(`Resume with id ${resumeId} not found`);
+    const resume = await resumeRepository.findById(resumeId);
+    if (!resume) {
+      throw new Error(`resume with ${resumeId} not available`);
+      return;
     }
-    const resume = res.rows[0];
-
     // Calculate Score
     const matchResult = calculateMatchScore(resume, jobDef);
     console.log("match result: ", matchResult);
@@ -122,6 +118,10 @@ export const matcherWorker = new Worker("matcher", matcherProcessor, {
 });
 
 matcherWorker.on("completed", (job, result) => {
+  if (!result) {
+    console.warn(`Matcher job ${job.id} completed but returned no result`);
+    return;
+  }
   console.log(
     `Matcher job ${job.id} completed with score:`,
     result.matchResult.total,

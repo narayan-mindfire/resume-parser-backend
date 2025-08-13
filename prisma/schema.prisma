@@ -27,3 +27,26 @@ model User {
 
   @@map("users") // Maps the model to the 'users' table
 }
+
+model Resume {
+  id                   String    @id @default(uuid())
+  fileName             String    @unique @map("file_name")
+  name                 String?
+  email                String?
+  phone                String?
+  skills               String[]  @default([])
+  education            String[]  @default([])
+  experience           String[]  @default([])
+  totalExperienceYears Decimal?  @map("total_experience_years") @db.Decimal(5, 2)
+  rawText              String?   @map("raw_text") @db.Text
+  processingStatus     String    @default("processing") @map("processing_status")
+  errorMessage         String?   @map("error_message") @db.Text
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  @@map("resumes")
+  @@index([fileName])
+  @@index([processingStatus])
+  @@index([createdAt])
+  @@index([email])
+}

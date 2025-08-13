@@ -1,43 +1,77 @@
-import { UUID } from "crypto";
-import pool from "../config/db";
+import { PrismaClient, Prisma, Resume } from "../../generated/prisma";
+const prisma = new PrismaClient();
 
-export interface ResumeInsert {
-  user_id: number;
-  file_name: string;
-  file_path: string;
-  file_type: string;
-  status?: string;
+/**
+ * @class ResumeRepository
+ * @description Handles all database interactions for the Resume model.
+ */
+class ResumeRepository {
+  /**
+   * Creates a new resume entry in the database.
+   * @param data The resume data to create.
+   * @returns The newly created resume object.
+   */
+  async create(data: Prisma.ResumeCreateInput): Promise<Resume> {
+    return prisma.resume.create({ data });
+  }
+
+  /**
+   * Finds a resume by its unique ID.
+   * @param id The resume's UUID.
+   * @returns The resume object or null if not found.
+   */
+  async findById(id: string): Promise<Resume | null> {
+    return prisma.resume.findUnique({ where: { id } });
+  }
+
+  /**
+   * Finds a resume by its unique ID.
+   * @param id The resume's UUID.
+   * @returns The resume object or null if not found.
+   */
+  async findAll(): Promise<Resume[] | null> {
+    return prisma.resume.findMany();
+  }
+
+  /**
+   * Finds a resume by its unique file name.
+   * @param fileName The resume's file name.
+   * @returns The resume object or null if not found.
+   */
+  async findByFileName(fileName: string): Promise<Resume | null> {
+    return prisma.resume.findUnique({ where: { fileName } });
+  }
+
+  /**
+   * Updates an existing resume entry.
+   * @param id The resume's UUID.
+   * @param data The data to update.
+   * @returns The updated resume object.
+   */
+  async update(id: string, data: Prisma.ResumeUpdateInput): Promise<Resume> {
+    return prisma.resume.update({ where: { id }, data });
+  }
+
+  /**
+   * Updates the processing status and error message of a resume.
+   * @param id The resume's UUID.
+   * @param status The new processing status.
+   * @param errorMessage The error message (optional).
+   * @returns The updated resume object.
+   */
+  async updateStatusAndError(
+    id: string,
+    status: string,
+    errorMessage?: string,
+  ): Promise<Resume> {
+    return prisma.resume.update({
+      where: { id },
+      data: {
+        processingStatus: status,
+        errorMessage: errorMessage,
+      },
+    });
+  }
 }
 
-export const ResumeRepository = {
-  async create(resume: ResumeInsert) {
-    const query = `
-      INSERT INTO resumes (user_id, file_name, file_path, file_type, status, uploaded_at)
-      VALUES ($1, $2, $3, $4, $5, NOW())
-      RETURNING *;
-    `;
-    const values = [
-      resume.user_id,
-      resume.file_name,
-      resume.file_path,
-      resume.file_type,
-      resume.status || "PENDING",
-    ];
-    const result = await pool.query(query, values);
-    return result.rows[0];
-  },
-
-  async findById(resumeId: UUID) {
-    const result = await pool.query(`SELECT * FROM resumes WHERE Id = $1`, [
-      resumeId,
-    ]);
-    return result.rows[0];
-  },
-
-  async findAll() {
-    const result = await pool.query(
-      `SELECT * FROM resumes ORDER BY updated_at DESC`,
-    );
-    return result.rows;
-  },
-};
+export const resumeRepository = new ResumeRepository();
