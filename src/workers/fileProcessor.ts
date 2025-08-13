@@ -40,12 +40,6 @@ async function runOCR(imagePath: string, tempDir: string): Promise<string> {
   });
 }
 
-/**
- * Sanitizes a filename to make it safe for SQL queries by replacing spaces and
- * parentheses with underscores. This prevents syntax errors.
- * @param {string} filename The original filename.
- * @returns {string} The sanitized filename.
- */
 function sanitizeFilename(filename: string): string {
   return filename.replace(/[\s()]/g, "_").replace(/_+/g, "_");
 }
@@ -56,7 +50,6 @@ export const processor = async (job: Job<CombinedJob>) => {
     job.data;
   console.log(`Start processing: ${fileName}`);
 
-  // --- Step 1: File Processing and OCR (Original Worker 1 Logic) ---
   await redisClient.set(
     `status:${trackingKey}`,
     JSON.stringify({
@@ -68,7 +61,6 @@ export const processor = async (job: Job<CombinedJob>) => {
     "EX",
     24 * 60 * 60,
   );
-
   const tempDir = path.join(__dirname, "../../temp_ocr");
   if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
 
@@ -125,7 +117,6 @@ export const processor = async (job: Job<CombinedJob>) => {
             },
           );
         });
-
         const pngFiles = fs
           .readdirSync(tempDir)
           .filter((f) => f.startsWith(baseName) && f.endsWith(".png"));
@@ -177,8 +168,6 @@ export const processor = async (job: Job<CombinedJob>) => {
   fs.readdirSync(tempDir)
     .filter((f) => f.startsWith(baseName))
     .forEach((f) => fs.unlinkSync(path.join(tempDir, f)));
-
-  // --- Step 2: Text Parsing (Original Worker 2 Logic) ---
   let resumeId: string | null = null;
   const sanitizedFileName = sanitizeFilename(fileName);
 
@@ -194,47 +183,29 @@ export const processor = async (job: Job<CombinedJob>) => {
       "EX",
       24 * 60 * 60,
     );
-
     const text = fullText;
 
     if (!text || typeof text !== "string") {
       throw new Error(`Invalid text data for ${fileName}`);
     }
 
-    let resume = await resumeRepository.findByFileName(sanitizedFileName);
-
-    if (resume) {
-      resume = await resumeRepository.update(resume.id, {
-        rawText: text,
-        processingStatus: "processing",
-      });
-      resumeId = resume.id;
-      console.log(
-        `Resuming processing for ${sanitizedFileName} with DB ID: ${resumeId}`,
-      );
-    } else {
-      // Create a new resume record, including userId and batchId
-      resume = await resumeRepository.create({
-        fileName: sanitizedFileName,
-        rawText: text,
-        processingStatus: "processing",
-        user: {
-          connect: { id: userId },
-        },
-        batch: {
-          connect: { id: batchId },
-        },
-      });
-      resumeId = resume.id;
-      console.log(
-        `Started processing for ${sanitizedFileName} with DB ID: ${resumeId}`,
-      );
-    }
-
-    // Parse the resume text
+    const resume = await resumeRepository.create({
+      fileName: sanitizedFileName,
+      rawText: text,
+      processingStatus: "processing",
+      user: {
+        connect: { id: userId },
+      },
+      batch: {
+        connect: { id: batchId },
+      },
+    });
+    resumeId = resume.id;
+    console.log(
+      `Started processing for ${sanitizedFileName} with DB ID: ${resumeId}`,
+    );
     const parsed = parseResumeText(text);
 
-    // Update the resume with parsed data
     await resumeRepository.update(resumeId, {
       name: parsed.name,
       email: parsed.email,
@@ -277,6 +248,23 @@ export const processor = async (job: Job<CombinedJob>) => {
         timestamp: Date.now(),
       }),
     );
+
+    const batchKey = `batch_count:${batchId}`;
+
+    const remainingJobs = await redisClient.decr(batchKey);
+
+    if (remainingJobs === 0) {
+      console.log(`Batch ${batchId} is complete. Publishing event.`);
+      await redisClient.publish(
+        "batch-updates",
+        JSON.stringify({
+          batchId,
+          status: "complete",
+          timestamp: Date.now(),
+        }),
+      );
+      await redisClient.del(batchKey);
+    }
 
     return parsed;
   } catch (error) {

@@ -7,7 +7,6 @@ import redisClient from "../config/redisClient";
 import { extractZipEntries } from "../utils/zipUtils";
 import { validExtensions, bucketName } from "../constants/fileConstants";
 import { fileProcessingQueue } from "../queues/fileProcessingQueue";
-import { v4 as uuidv4 } from "uuid";
 import { AuthRequest } from "../types/types";
 import { create as createBatch } from "../repositories/batch.repository";
 
@@ -15,6 +14,7 @@ export const processChunkUpload = async (req: Request, res: Response) => {
   console.log("checking in!");
   const { uploadId, chunkIndex, totalChunks, fileName } = req.body;
   const userId = (req as AuthRequest).user?.id;
+
   console.log("user id: ", userId);
 
   if (
@@ -53,7 +53,6 @@ export const processChunkUpload = async (req: Request, res: Response) => {
 
   writeStream.end();
   await once(writeStream, "finish");
-
   fs.rmSync(chunkDir, { recursive: true, force: true });
 
   const extractTo = path.join(__dirname, "../../extracted");
@@ -66,15 +65,26 @@ export const processChunkUpload = async (req: Request, res: Response) => {
     extractTo,
     validExtensions,
   );
+
   fs.unlinkSync(outputPath);
 
   const urls: string[] = [];
   const fileList: string[] = [];
   const bucketExists = await minioClient.bucketExists(bucketName);
+
   if (!bucketExists) await minioClient.makeBucket(bucketName);
 
   const batch = await createBatch(userId);
   const batchId = batch.id;
+  const totalFiles = extractedFiles.length;
+
+  await redisClient.set(
+    `batch_count:${batchId}`,
+    totalFiles,
+    "EX",
+    24 * 60 * 60,
+  );
+
   for (const file of extractedFiles) {
     const filePath = path.join(extractTo, file);
     const objectName = `${uploadId}/${file}`;
@@ -131,7 +141,7 @@ export const processChunkUpload = async (req: Request, res: Response) => {
     files: urls,
     uploadId,
     fileList,
-    totalFiles: extractedFiles.length,
+    totalFiles,
     batchId,
   });
 };

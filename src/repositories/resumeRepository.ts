@@ -38,10 +38,9 @@ class ResumeRepository {
    * @param fileName The resume's file name.
    * @returns The resume object or null if not found.
    */
-  async findByFileName(fileName: string): Promise<Resume | null> {
-    return prisma.resume.findUnique({ where: { fileName } });
+  async findByBatchId(batchId: string): Promise<Resume[] | null> {
+    return prisma.resume.findMany({ where: { batchId } });
   }
-
   /**
    * Updates an existing resume entry.
    * @param id The resume's UUID.

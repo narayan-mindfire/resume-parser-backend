@@ -18,3 +18,15 @@ export const fetchResumeById = async (req: Request, res: Response) => {
     }
   }
 };
+
+export const fetchResumeByBatch = async (req: Request, res: Response) => {
+  const batchId = req.params.batchId;
+  if (batchId) {
+    const resumes = await resumeRepository.findByBatchId(batchId);
+    if (resumes) {
+      res.status(200).json({ resumes });
+    } else {
+      res.status(404);
+    }
+  }
+};
