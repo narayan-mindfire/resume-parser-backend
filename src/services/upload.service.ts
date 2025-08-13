@@ -7,11 +7,24 @@ import redisClient from "../config/redisClient";
 import { extractZipEntries } from "../utils/zipUtils";
 import { validExtensions, bucketName } from "../constants/fileConstants";
 import { fileProcessingQueue } from "../queues/fileProcessingQueue";
+import { v4 as uuidv4 } from "uuid";
+import { AuthRequest } from "../types/types";
+import { create as createBatch } from "../repositories/batch.repository";
 
 export const processChunkUpload = async (req: Request, res: Response) => {
+  console.log("checking in!");
   const { uploadId, chunkIndex, totalChunks, fileName } = req.body;
+  const userId = (req as AuthRequest).user?.id;
+  console.log("user id: ", userId);
 
-  if (!req.file || !uploadId || !chunkIndex || !totalChunks || !fileName) {
+  if (
+    !req.file ||
+    !uploadId ||
+    !chunkIndex ||
+    !totalChunks ||
+    !fileName ||
+    !userId
+  ) {
     res.status(400);
     throw new Error("Missing required fields");
   }
@@ -60,6 +73,8 @@ export const processChunkUpload = async (req: Request, res: Response) => {
   const bucketExists = await minioClient.bucketExists(bucketName);
   if (!bucketExists) await minioClient.makeBucket(bucketName);
 
+  const batch = await createBatch(userId);
+  const batchId = batch.id;
   for (const file of extractedFiles) {
     const filePath = path.join(extractTo, file);
     const objectName = `${uploadId}/${file}`;
@@ -104,6 +119,8 @@ export const processChunkUpload = async (req: Request, res: Response) => {
       minioPath: objectName,
       uploadId,
       trackingKey,
+      userId,
+      batchId,
     });
 
     fs.unlinkSync(filePath);
@@ -115,5 +132,6 @@ export const processChunkUpload = async (req: Request, res: Response) => {
     uploadId,
     fileList,
     totalFiles: extractedFiles.length,
+    batchId,
   });
 };

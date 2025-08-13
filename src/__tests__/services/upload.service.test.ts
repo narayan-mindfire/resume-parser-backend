@@ -9,6 +9,13 @@ import { fileProcessingQueue } from "../../queues/fileProcessingQueue";
 import { processChunkUpload } from "../../services/upload.service";
 import { validExtensions, bucketName } from "../../constants/fileConstants";
 import stream from "stream";
+import { create as createBatch } from "../../repositories/batch.repository";
+import { AuthRequest } from "../../types/types";
+
+// Mock the new batchRepository
+jest.mock("../../repositories/batch.repository", () => ({
+  create: jest.fn(),
+}));
 
 jest.mock("fs");
 jest.mock("path");
@@ -23,7 +30,7 @@ jest.mock("../../config/redisClient", () => ({
 }));
 
 describe("processChunkUpload", () => {
-  let mockRequest: Partial<Request>;
+  let mockRequest: Partial<AuthRequest>;
   let mockResponse: Partial<Response>;
   let mockStatus: jest.Mock;
   let mockJson: jest.Mock;
@@ -51,6 +58,9 @@ describe("processChunkUpload", () => {
         path: "/mock/path/to/chunk",
         buffer: Buffer.from("mock data"),
         stream: new stream.Readable(),
+      },
+      user: {
+        id: "mock-user-id",
       },
     };
 
@@ -84,6 +94,13 @@ describe("processChunkUpload", () => {
 
     (fileProcessingQueue.add as jest.Mock).mockResolvedValue(undefined);
 
+    // Mock the new batch creation function
+    (createBatch as jest.Mock).mockResolvedValue({
+      id: "mock-batch-id",
+      userId: "mock-user-id",
+      createdAt: new Date(),
+    });
+
     (path.join as jest.Mock).mockImplementation((...args) => args.join("/"));
   });
 
@@ -111,13 +128,16 @@ describe("processChunkUpload", () => {
       totalChunks: "1",
       fileName: "test.zip",
     };
+    // Mock user is also undefined to trigger the error
+    mockRequest.user = undefined;
 
     await expect(
       processChunkUpload(mockRequest as Request, mockResponse as Response),
     ).rejects.toThrow("Missing required fields");
     expect(mockStatus).toHaveBeenCalledWith(400);
   });
-  test("should process final chunk, extract files, upload to MinIO, store in Redis, and enqueue jobs", async () => {
+
+  test("should process final chunk, create batch, extract files, upload to MinIO, and enqueue jobs", async () => {
     // Make it the last chunk
     mockRequest.body = {
       uploadId: "test-upload-id",
@@ -149,6 +169,9 @@ describe("processChunkUpload", () => {
       expect.stringContaining("temp_chunks/test-upload-id"),
       { recursive: true, force: true },
     );
+
+    // Assert that a batch is created
+    expect(createBatch).toHaveBeenCalledWith("mock-user-id");
 
     expect(extractZipEntries).toHaveBeenCalledWith(
       expect.stringContaining("uploads/test.zip"),
@@ -185,9 +208,14 @@ describe("processChunkUpload", () => {
         24 * 60 * 60,
       );
 
+      // Assert that fileProcessingQueue.add is called with the batchId
       expect(fileProcessingQueue.add).toHaveBeenCalledWith(
         "processFile",
-        expect.objectContaining({ fileName: file }),
+        expect.objectContaining({
+          fileName: file,
+          batchId: "mock-batch-id",
+          userId: "mock-user-id",
+        }),
       );
     }
 
@@ -198,6 +226,7 @@ describe("processChunkUpload", () => {
         files: expect.any(Array),
         fileList: ["file1.pdf", "file2.jpg"],
         totalFiles: 2,
+        batchId: "mock-batch-id",
       }),
     );
   });

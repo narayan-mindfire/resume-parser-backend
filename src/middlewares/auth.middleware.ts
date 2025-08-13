@@ -31,7 +31,7 @@ export const protect = asyncHandler(
         res.status(404);
         throw new Error("User not found");
       }
-
+      console.log("user: ", user.id);
       (req as AuthRequest).user = user;
       next();
     } catch (error: unknown) {

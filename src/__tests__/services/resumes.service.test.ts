@@ -36,6 +36,8 @@ describe("Resume Controller", () => {
       errorMessage: null,
       createdAt: new Date(),
       updatedAt: new Date(),
+      userId: "userid",
+      batchId: "batchid",
     },
   ];
 

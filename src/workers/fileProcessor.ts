@@ -8,11 +8,15 @@ import pdf from "pdf-parse";
 import { parseResumeText } from "./extractor.service";
 import { resumeRepository } from "../repositories/resumeRepository";
 
+// Define a single, combined job interface that includes all necessary data
+// for both the original file processing and text parsing steps.
 export interface CombinedJob {
   fileName: string;
   minioPath: string;
   uploadId: string;
   trackingKey: string;
+  userId: string;
+  batchId: string;
 }
 
 /**
@@ -36,15 +40,23 @@ async function runOCR(imagePath: string, tempDir: string): Promise<string> {
   });
 }
 
+/**
+ * Sanitizes a filename to make it safe for SQL queries by replacing spaces and
+ * parentheses with underscores. This prevents syntax errors.
+ * @param {string} filename The original filename.
+ * @returns {string} The sanitized filename.
+ */
 function sanitizeFilename(filename: string): string {
   return filename.replace(/[\s()]/g, "_").replace(/_+/g, "_");
 }
 
 export const processor = async (job: Job<CombinedJob>) => {
-  const { fileName, minioPath, uploadId, trackingKey } = job.data;
+  // Extract userId and batchId from job data
+  const { fileName, minioPath, uploadId, trackingKey, userId, batchId } =
+    job.data;
   console.log(`Start processing: ${fileName}`);
 
-  // --- File Processing and OCR ---
+  // --- Step 1: File Processing and OCR (Original Worker 1 Logic) ---
   await redisClient.set(
     `status:${trackingKey}`,
     JSON.stringify({
@@ -166,6 +178,7 @@ export const processor = async (job: Job<CombinedJob>) => {
     .filter((f) => f.startsWith(baseName))
     .forEach((f) => fs.unlinkSync(path.join(tempDir, f)));
 
+  // --- Step 2: Text Parsing (Original Worker 2 Logic) ---
   let resumeId: string | null = null;
   const sanitizedFileName = sanitizeFilename(fileName);
 
@@ -200,10 +213,17 @@ export const processor = async (job: Job<CombinedJob>) => {
         `Resuming processing for ${sanitizedFileName} with DB ID: ${resumeId}`,
       );
     } else {
+      // Create a new resume record, including userId and batchId
       resume = await resumeRepository.create({
         fileName: sanitizedFileName,
         rawText: text,
         processingStatus: "processing",
+        user: {
+          connect: { id: userId },
+        },
+        batch: {
+          connect: { id: batchId },
+        },
       });
       resumeId = resume.id;
       console.log(
