@@ -13,3 +13,11 @@ export const create = async (userId: string): Promise<Batch> => {
     },
   });
 };
+
+export const fetchMyBatches = async (userId: string): Promise<Batch[]> => {
+  return prisma.batch.findMany({
+    where: {
+      userId,
+    },
+  });
+};

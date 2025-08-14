@@ -46,6 +46,7 @@ model Resume {
   user                 User       @relation(fields: [userId], references: [id])
   batchId              String?
   batch                Batch?     @relation(fields: [batchId], references: [id])
+  url                  String?
   fileName             String     @map("file_name")
   name                 String?
   email                String?

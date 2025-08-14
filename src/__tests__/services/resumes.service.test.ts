@@ -38,6 +38,7 @@ describe("Resume Controller", () => {
       updatedAt: new Date(),
       userId: "userid",
       batchId: "batchid",
+      url: null,
     },
   ];
 

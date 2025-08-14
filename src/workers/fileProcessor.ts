@@ -17,6 +17,7 @@ export interface CombinedJob {
   trackingKey: string;
   userId: string;
   batchId: string;
+  presignedUrl: string;
 }
 
 /**
@@ -46,8 +47,15 @@ function sanitizeFilename(filename: string): string {
 
 export const processor = async (job: Job<CombinedJob>) => {
   // Extract userId and batchId from job data
-  const { fileName, minioPath, uploadId, trackingKey, userId, batchId } =
-    job.data;
+  const {
+    fileName,
+    minioPath,
+    uploadId,
+    trackingKey,
+    userId,
+    batchId,
+    presignedUrl,
+  } = job.data;
   console.log(`Start processing: ${fileName}`);
 
   await redisClient.set(
@@ -192,6 +200,7 @@ export const processor = async (job: Job<CombinedJob>) => {
     const resume = await resumeRepository.create({
       fileName: sanitizedFileName,
       rawText: text,
+      url: presignedUrl,
       processingStatus: "processing",
       user: {
         connect: { id: userId },

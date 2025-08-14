@@ -131,6 +131,7 @@ export const processChunkUpload = async (req: Request, res: Response) => {
       trackingKey,
       userId,
       batchId,
+      presignedUrl,
     });
 
     fs.unlinkSync(filePath);
