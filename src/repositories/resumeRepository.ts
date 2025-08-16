@@ -1,4 +1,5 @@
 import { PrismaClient, Prisma, Resume } from "../../generated/prisma";
+import { Insights } from "../types/types";
 const prisma = new PrismaClient();
 
 /**
@@ -70,6 +71,52 @@ class ResumeRepository {
         errorMessage: errorMessage,
       },
     });
+  }
+
+  async fetchInsights(batchId: string): Promise<Insights> {
+    console.log("batchId: ", batchId);
+
+    // 1. Calculate Average Experience
+    const avgExperienceResult: { average: number }[] = await prisma.$queryRaw`
+    SELECT AVG(COALESCE("total_experience_years", 0))::float AS average
+    FROM "resumes"
+    WHERE "batchId" = ${batchId}
+  `;
+
+    const averageExperience = avgExperienceResult[0]?.average || 0;
+    console.log("got data: ", averageExperience);
+
+    // 2. Find Top Skills
+    const topSkillsResult: { skill: string; count: number }[] =
+      await prisma.$queryRaw`
+    SELECT
+      UNNEST(skills) AS skill,
+      COUNT(*)::int AS count
+    FROM "resumes"
+    WHERE "batchId" = ${batchId}
+    GROUP BY skill
+    ORDER BY count DESC
+    LIMIT 10;
+  `;
+
+    // 3. Find Common Universities
+    const commonUniversitiesResult: { university: string; count: number }[] =
+      await prisma.$queryRaw`
+    SELECT
+      UNNEST(education) AS university,
+      COUNT(*)::int AS count
+    FROM "resumes"
+    WHERE "batchId" = ${batchId}
+    GROUP BY university
+    ORDER BY count DESC
+    LIMIT 3;
+  `;
+
+    return {
+      topSkills: topSkillsResult,
+      averageExperience,
+      commonUniversities: commonUniversitiesResult,
+    };
   }
 }
 

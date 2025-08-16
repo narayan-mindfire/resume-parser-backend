@@ -26,3 +26,9 @@ export interface JobType {
 export interface AuthRequest extends Request {
   user: Omit<User, "password">;
 }
+
+export interface Insights {
+  topSkills: { skill: string; count: number }[];
+  averageExperience: number;
+  commonUniversities: { university: string; count: number }[];
+}
