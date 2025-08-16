@@ -5,15 +5,27 @@ import fs from "fs";
 import path from "path";
 import { exec } from "child_process";
 import pdf from "pdf-parse";
-import { textParsingQueue } from "../queues/textParsingQueue";
+import { parseResumeText } from "./extractor.service";
+import { resumeRepository } from "../repositories/resumeRepository";
 
-export interface FileProcessingJob {
+// Define a single, combined job interface that includes all necessary data
+// for both the original file processing and text parsing steps.
+export interface CombinedJob {
   fileName: string;
   minioPath: string;
   uploadId: string;
   trackingKey: string;
+  userId: string;
+  batchId: string;
+  presignedUrl: string;
 }
 
+/**
+ * Executes OCR on an image file using a Tesseract Docker container.
+ * @param {string} imagePath The path to the image file.
+ * @param {string} tempDir The temporary directory where the file is located.
+ * @returns {Promise<string>} A promise that resolves with the extracted text.
+ */
 async function runOCR(imagePath: string, tempDir: string): Promise<string> {
   return new Promise<string>((resolve, reject) => {
     exec(
@@ -29,8 +41,21 @@ async function runOCR(imagePath: string, tempDir: string): Promise<string> {
   });
 }
 
-export const processor = async (job: Job<FileProcessingJob>) => {
-  const { fileName, minioPath, uploadId, trackingKey } = job.data;
+function sanitizeFilename(filename: string): string {
+  return filename.replace(/[\s()]/g, "_").replace(/_+/g, "_");
+}
+
+export const processor = async (job: Job<CombinedJob>) => {
+  // Extract userId and batchId from job data
+  const {
+    fileName,
+    minioPath,
+    uploadId,
+    trackingKey,
+    userId,
+    batchId,
+    presignedUrl,
+  } = job.data;
   console.log(`Start processing: ${fileName}`);
 
   await redisClient.set(
@@ -44,15 +69,14 @@ export const processor = async (job: Job<FileProcessingJob>) => {
     "EX",
     24 * 60 * 60,
   );
-
   const tempDir = path.join(__dirname, "../../temp_ocr");
   if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
 
   const localFilePath = path.join(tempDir, fileName);
   const baseName = path.parse(fileName).name;
 
-  // Download file from MinIO
   try {
+    // Download file from MinIO
     const stream = await minioClient.getObject("resumes", minioPath);
     await new Promise<void>((resolve, reject) => {
       const ws = fs.createWriteStream(localFilePath);
@@ -94,14 +118,13 @@ export const processor = async (job: Job<FileProcessingJob>) => {
             `docker run --rm -v ${tempDir}:/data minidocks/poppler pdftoppm /data/${fileName} /data/${baseName} -png`,
             (err, _stdout, stderr) => {
               if (err) {
-                console.error("PDF → image conversion error:", stderr);
+                console.error("PDF -> image conversion error:", stderr);
                 return reject(err);
               }
               resolve();
             },
           );
         });
-
         const pngFiles = fs
           .readdirSync(tempDir)
           .filter((f) => f.startsWith(baseName) && f.endsWith(".png"));
@@ -150,37 +173,152 @@ export const processor = async (job: Job<FileProcessingJob>) => {
 
   console.log(`Extracted text:\n${fullText}`);
 
-  await redisClient.set(
-    `ocr:${fileName}`,
-    JSON.stringify({ text: fullText, processedAt: Date.now() }),
-  );
-
-  await redisClient.set(
-    `status:${trackingKey}`,
-    JSON.stringify({
-      fileName,
-      uploadId,
-      status: "ocr-completed",
-      timestamp: Date.now(),
-    }),
-    "EX",
-    24 * 60 * 60,
-  );
-
-  // Cleanup
   fs.readdirSync(tempDir)
     .filter((f) => f.startsWith(baseName))
     .forEach((f) => fs.unlinkSync(path.join(tempDir, f)));
+  let resumeId: string | null = null;
+  const sanitizedFileName = sanitizeFilename(fileName);
 
-  console.log(`Finished processing: ${fileName}`);
+  try {
+    await redisClient.set(
+      `status:${trackingKey}`,
+      JSON.stringify({
+        fileName,
+        uploadId,
+        status: "parsing-text",
+        timestamp: Date.now(),
+      }),
+      "EX",
+      24 * 60 * 60,
+    );
+    const text = fullText;
 
-  await textParsingQueue.add("parse-text", {
-    fileName,
-    uploadId,
-    trackingKey,
-  });
+    if (!text || typeof text !== "string") {
+      throw new Error(`Invalid text data for ${fileName}`);
+    }
+
+    const resume = await resumeRepository.create({
+      fileName: sanitizedFileName,
+      rawText: text,
+      url: presignedUrl,
+      processingStatus: "processing",
+      user: {
+        connect: { id: userId },
+      },
+      batch: {
+        connect: { id: batchId },
+      },
+    });
+    resumeId = resume.id;
+    console.log(
+      `Started processing for ${sanitizedFileName} with DB ID: ${resumeId}`,
+    );
+    const parsed = parseResumeText(text);
+
+    await resumeRepository.update(resumeId, {
+      name: parsed.name,
+      email: parsed.email,
+      phone: parsed.phone,
+      skills: parsed.skills,
+      education: parsed.education,
+      experience: parsed.experience,
+      totalExperienceYears: parsed.totalExperienceYears,
+      processingStatus: "completed",
+    });
+
+    console.log(
+      `Successfully parsed and stored resume for ${sanitizedFileName} in PostgreSQL.`,
+    );
+
+    await redisClient.set(
+      `status:${trackingKey}`,
+      JSON.stringify({
+        fileName,
+        uploadId,
+        status: "completed",
+        resumeId,
+        timestamp: Date.now(),
+      }),
+      "EX",
+      24 * 60 * 60,
+    );
+
+    // Publish notification with uploadId for Socket.io routing
+    await redisClient.publish(
+      "job-updates",
+      JSON.stringify({
+        jobId: job.id,
+        fileName: sanitizedFileName,
+        uploadId,
+        trackingKey,
+        status: "completed",
+        resumeId: resumeId,
+        data: parsed,
+        timestamp: Date.now(),
+      }),
+    );
+
+    const batchKey = `batch_count:${batchId}`;
+
+    const remainingJobs = await redisClient.decr(batchKey);
+
+    if (remainingJobs === 0) {
+      console.log(`Batch ${batchId} is complete. Publishing event.`);
+      await redisClient.publish(
+        "batch-updates",
+        JSON.stringify({
+          batchId,
+          status: "complete",
+          timestamp: Date.now(),
+        }),
+      );
+      await redisClient.del(batchKey);
+    }
+
+    return parsed;
+  } catch (error) {
+    console.error(`Error processing resume ${sanitizedFileName}:`, error);
+
+    if (resumeId) {
+      await resumeRepository.updateStatusAndError(
+        resumeId,
+        "failed",
+        error instanceof Error ? error.message : "Unknown error",
+      );
+
+      await redisClient.set(
+        `status:${trackingKey}`,
+        JSON.stringify({
+          fileName,
+          uploadId,
+          status: "failed",
+          error: error instanceof Error ? error.message : "Unknown error",
+          resumeId,
+          timestamp: Date.now(),
+        }),
+        "EX",
+        24 * 60 * 60,
+      );
+
+      await redisClient.publish(
+        "job-updates",
+        JSON.stringify({
+          jobId: job?.id,
+          fileName: sanitizedFileName,
+          uploadId,
+          trackingKey,
+          status: "failed",
+          error: error instanceof Error ? error.message : "Unknown error",
+          resumeId: resumeId,
+          timestamp: Date.now(),
+        }),
+      );
+    }
+
+    throw error;
+  }
 };
 
-new Worker<FileProcessingJob>("file-processing", processor, {
+new Worker<CombinedJob>("file-processing", processor, {
   connection: redisClient,
 });

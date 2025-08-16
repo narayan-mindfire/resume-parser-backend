@@ -15,15 +15,55 @@ datasource db {
 }
 
 model User {
-  id         String   @id @default(uuid())
-  fname      String
-  lname      String
-  email      String   @unique
-  password   String
-  bio        String?
+  id           String    @id @default(uuid())
+  fname        String
+  lname        String
+  email        String    @unique
+  password     String
+  bio          String?
   profileImage String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  resumes      Resume[]
+  batches      Batch[]
 
   @@map("users") // Maps the model to the 'users' table
+}
+
+model Batch {
+  id           String    @id @default(uuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id])
+  resumes      Resume[]
+  createdAt    DateTime  @default(now())
+
+  @@map("batches")
+}
+
+model Resume {
+  id                   String     @id @default(uuid())
+  userId               String
+  user                 User       @relation(fields: [userId], references: [id])
+  batchId              String?
+  batch                Batch?     @relation(fields: [batchId], references: [id])
+  url                  String?
+  fileName             String     @map("file_name")
+  name                 String?
+  email                String?
+  phone                String?
+  skills               String[]   @default([])
+  education            String[]   @default([])
+  experience           String[]   @default([])
+  totalExperienceYears Decimal?   @map("total_experience_years") @db.Decimal(5, 2)
+  rawText              String?    @map("raw_text") @db.Text
+  processingStatus     String     @default("processing") @map("processing_status")
+  errorMessage         String?    @map("error_message") @db.Text
+  createdAt            DateTime   @default(now()) @map("created_at")
+  updatedAt            DateTime   @updatedAt @map("updated_at")
+
+  @@map("resumes")
+  @@index([fileName])
+  @@index([processingStatus])
+  @@index([createdAt])
+  @@index([email])
 }

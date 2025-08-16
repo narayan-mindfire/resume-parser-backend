@@ -6,6 +6,7 @@ import asyncHandler from "express-async-handler";
  */
 export const handleZipUpload = asyncHandler(
   async (req: Request, res: Response) => {
+    console.log("zip upload controller");
     await processChunkUpload(req, res);
   },
 );
