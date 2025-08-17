@@ -1,9 +1,9 @@
 import express from "express";
-import { matchJobController } from "../controllers/job.controller";
+import { matchJobByBatch } from "../controllers/job.controller";
 import { protect } from "../middlewares/auth.middleware";
 
-const resumeRouter = express.Router();
+const jobRouter = express.Router();
 
-resumeRouter.get("/match-job", protect, matchJobController);
+jobRouter.get("/match-batch-job", protect, matchJobByBatch);
 
-export default resumeRouter;
+export default jobRouter;

@@ -1,15 +1,14 @@
 import { Request, Response } from "express";
-import { matchJobService } from "../services/jobs.service";
+import { matchJobInBatch } from "../services/jobs.service";
 
-export async function matchJobController(req: Request, res: Response) {
+export async function matchJobByBatch(req: Request, res: Response) {
   try {
-    const { jobId, resumeId } = req.query;
-    if (typeof jobId !== "string" || typeof resumeId !== "string") {
-      res.status(400).json({ error: "jobId and resumeId must be strings." });
-      return;
+    const { jobId, batchId } = req.query;
+    if (typeof jobId !== "string" || typeof batchId !== "string") {
+      throw new Error("request queries missing");
     }
-    const { trackingKey } = await matchJobService(jobId, resumeId);
-    res.status(200).json({ trackingKey });
+    const matches = await matchJobInBatch(jobId, batchId);
+    res.status(200).json({ matches });
   } catch (err: unknown) {
     if (err instanceof Error) res.status(400).json({ error: err.message });
     else {
