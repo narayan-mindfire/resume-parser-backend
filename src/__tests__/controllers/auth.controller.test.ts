@@ -12,7 +12,6 @@ import {
   editMe,
 } from "../../controllers/auth.controller";
 
-// Mock the authService to isolate the controller logic
 jest.mock("../../services/auth.service", () => ({
   authService: {
     register: jest.fn(),
@@ -318,6 +317,120 @@ describe("Auth Controller", () => {
 
       expect(mockStatus).toHaveBeenCalledWith(400);
       expect(mockJson).toHaveBeenCalledWith({ message: errorMessage });
+    });
+  });
+  describe("Auth Controller - Edge Cases", () => {
+    describe("registerUser", () => {
+      test("should handle non-Error thrown", async () => {
+        mockAuthService.register.mockRejectedValue("bad failure");
+        mockRequest.body = { email: "test@example.com" };
+
+        await registerUser(mockRequest as Request, mockResponse as Response);
+
+        expect(mockStatus).toHaveBeenCalledWith(400);
+        expect(mockJson).toHaveBeenCalledWith({
+          message: "Something went wrong",
+        });
+      });
+
+      test("should work without file upload", async () => {
+        const mockUser = { id: "id1", email: "nofile@test.com" } as User;
+        mockAuthService.register.mockResolvedValue({
+          user: mockUser,
+          accessToken: "mockAT",
+          refreshToken: "mockRT",
+        });
+
+        mockRequest.body = { email: "nofile@test.com" };
+
+        await registerUser(mockRequest as Request, mockResponse as Response);
+
+        expect(mockAuthService.register).toHaveBeenCalledWith({
+          email: "nofile@test.com",
+          profileImage: undefined,
+        });
+      });
+    });
+
+    describe("loginUser", () => {
+      test("should handle non-Error thrown", async () => {
+        mockAuthService.login.mockRejectedValue("login failure");
+        mockRequest.body = { email: "test@example.com", password: "wrong" };
+
+        await loginUser(mockRequest as Request, mockResponse as Response);
+
+        expect(mockStatus).toHaveBeenCalledWith(400);
+        expect(mockJson).toHaveBeenCalledWith({
+          message: "Something went wrong",
+        });
+      });
+    });
+
+    describe("refreshToken", () => {
+      test("should return 400 if refresh fails with error", async () => {
+        mockRequest.cookies = { refreshToken: "badToken" };
+        mockAuthService.refresh.mockRejectedValue(new Error("Invalid token"));
+
+        await refreshToken(mockRequest as Request, mockResponse as Response);
+
+        expect(mockStatus).toHaveBeenCalledWith(400);
+        expect(mockJson).toHaveBeenCalledWith({ message: "Invalid token" });
+      });
+
+      test("should return 400 if refresh fails with non-Error", async () => {
+        mockRequest.cookies = { refreshToken: "badToken" };
+        mockAuthService.refresh.mockRejectedValue("some bad thing");
+
+        await refreshToken(mockRequest as Request, mockResponse as Response);
+
+        expect(mockStatus).toHaveBeenCalledWith(400);
+        expect(mockJson).toHaveBeenCalledWith({
+          message: "Something went wrong",
+        });
+      });
+    });
+
+    describe("getMe", () => {
+      test("should handle non-Error rejection", async () => {
+        mockRequest.user = { id: "test-uuid" };
+        mockAuthService.me.mockRejectedValue("not found");
+
+        await getMe(mockRequest as AuthRequest, mockResponse as Response);
+
+        expect(mockStatus).toHaveBeenCalledWith(400);
+        expect(mockJson).toHaveBeenCalledWith({
+          message: "Something went wrong",
+        });
+      });
+    });
+
+    describe("deleteMe", () => {
+      test("should handle non-Error rejection", async () => {
+        mockRequest.user = { id: "test-uuid" };
+        mockAuthService.deleteMe.mockRejectedValue("delete fail");
+
+        await deleteMe(mockRequest as AuthRequest, mockResponse as Response);
+
+        expect(mockStatus).toHaveBeenCalledWith(400);
+        expect(mockJson).toHaveBeenCalledWith({
+          message: "Something went wrong",
+        });
+      });
+    });
+
+    describe("editMe", () => {
+      test("should handle non-Error rejection", async () => {
+        mockRequest.user = { id: "test-uuid" };
+        mockRequest.body = { fname: "broken" };
+        mockAuthService.editMe.mockRejectedValue("edit fail");
+
+        await editMe(mockRequest as AuthRequest, mockResponse as Response);
+
+        expect(mockStatus).toHaveBeenCalledWith(400);
+        expect(mockJson).toHaveBeenCalledWith({
+          message: "Something went wrong",
+        });
+      });
     });
   });
 });

@@ -2,7 +2,8 @@ import { Request, Response } from "express";
 import {
   fetchAllResumes,
   fetchResumeById,
-} from "../../services/resumes.service";
+  fetchResumeByBatch,
+} from "../../services/resumes.service"; // adjust path if needed
 import { resumeRepository } from "../../repositories/resumeRepository";
 import { Resume } from "../../../generated/prisma";
 import { Decimal } from "@prisma/client/runtime/library";
@@ -11,6 +12,7 @@ jest.mock("../../repositories/resumeRepository", () => ({
   resumeRepository: {
     findAll: jest.fn(),
     findById: jest.fn(),
+    findByBatchId: jest.fn(),
   },
 }));
 
@@ -22,17 +24,17 @@ describe("Resume Controller", () => {
 
   const mockResumes: Resume[] = [
     {
-      id: "another-mock-id",
-      fileName: "another_file.doc",
+      id: "mock-id",
+      fileName: "file.doc",
       processingStatus: "COMPLETED",
       rawText: "some text",
-      name: "John Doe",
-      email: "john.doe@example.com",
+      name: "Jane Doe",
+      email: "jane.doe@example.com",
       phone: "123-456-7890",
       skills: ["JS"],
       education: ["University"],
-      experience: ["2", "e"],
-      totalExperienceYears: Decimal(2),
+      experience: ["2 years"],
+      totalExperienceYears: new Decimal(2),
       errorMessage: null,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -65,6 +67,18 @@ describe("Resume Controller", () => {
       expect(mockStatus).toHaveBeenCalledWith(200);
       expect(mockJson).toHaveBeenCalledWith({ resumes: mockResumes });
     });
+
+    it("should return an empty array if no resumes exist", async () => {
+      (resumeRepository.findAll as jest.Mock).mockResolvedValue([]);
+
+      mockRequest = {};
+
+      await fetchAllResumes(mockRequest as Request, mockResponse as Response);
+
+      expect(resumeRepository.findAll).toHaveBeenCalled();
+      expect(mockStatus).toHaveBeenCalledWith(200);
+      expect(mockJson).toHaveBeenCalledWith({ resumes: [] });
+    });
   });
 
   describe("fetchResumeById", () => {
@@ -73,9 +87,7 @@ describe("Resume Controller", () => {
         mockResumes[0],
       );
 
-      mockRequest = {
-        params: { id: mockResumes[0].id },
-      };
+      mockRequest = { params: { id: mockResumes[0].id } };
 
       await fetchResumeById(mockRequest as Request, mockResponse as Response);
 
@@ -87,9 +99,7 @@ describe("Resume Controller", () => {
     it("should return a 404 status code if the resume is not found", async () => {
       (resumeRepository.findById as jest.Mock).mockResolvedValue(null);
 
-      mockRequest = {
-        params: { id: "non-existent-id" },
-      };
+      mockRequest = { params: { id: "non-existent-id" } };
 
       await fetchResumeById(mockRequest as Request, mockResponse as Response);
 
@@ -98,14 +108,61 @@ describe("Resume Controller", () => {
       expect(mockJson).not.toHaveBeenCalled();
     });
 
-    it("should not call the repository or send a response if ID is missing", async () => {
-      mockRequest = {
-        params: {},
-      };
+    it("should not call the repository if ID is missing", async () => {
+      mockRequest = { params: {} };
 
       await fetchResumeById(mockRequest as Request, mockResponse as Response);
 
       expect(resumeRepository.findById).not.toHaveBeenCalled();
+      expect(mockStatus).not.toHaveBeenCalled();
+      expect(mockJson).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("fetchResumeByBatch", () => {
+    it("should return resumes by batch with a 200 status code", async () => {
+      (resumeRepository.findByBatchId as jest.Mock).mockResolvedValue(
+        mockResumes,
+      );
+
+      mockRequest = { params: { batchId: "batchid" } };
+
+      await fetchResumeByBatch(
+        mockRequest as Request,
+        mockResponse as Response,
+      );
+
+      expect(resumeRepository.findByBatchId).toHaveBeenCalledWith("batchid");
+      expect(mockStatus).toHaveBeenCalledWith(200);
+      expect(mockJson).toHaveBeenCalledWith({ resumes: mockResumes });
+    });
+
+    it("should return 404 if no resumes found for batch", async () => {
+      (resumeRepository.findByBatchId as jest.Mock).mockResolvedValue(null);
+
+      mockRequest = { params: { batchId: "empty-batch" } };
+
+      await fetchResumeByBatch(
+        mockRequest as Request,
+        mockResponse as Response,
+      );
+
+      expect(resumeRepository.findByBatchId).toHaveBeenCalledWith(
+        "empty-batch",
+      );
+      expect(mockStatus).toHaveBeenCalledWith(404);
+      expect(mockJson).not.toHaveBeenCalled();
+    });
+
+    it("should not call repository if batchId is missing", async () => {
+      mockRequest = { params: {} };
+
+      await fetchResumeByBatch(
+        mockRequest as Request,
+        mockResponse as Response,
+      );
+
+      expect(resumeRepository.findByBatchId).not.toHaveBeenCalled();
       expect(mockStatus).not.toHaveBeenCalled();
       expect(mockJson).not.toHaveBeenCalled();
     });

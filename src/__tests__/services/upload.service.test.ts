@@ -12,7 +12,6 @@ import stream from "stream";
 import { create as createBatch } from "../../repositories/batch.repository";
 import { AuthRequest } from "../../types/types";
 
-// Mock the new batchRepository
 jest.mock("../../repositories/batch.repository", () => ({
   create: jest.fn(),
 }));
@@ -128,7 +127,6 @@ describe("processChunkUpload", () => {
       totalChunks: "1",
       fileName: "test.zip",
     };
-    // Mock user is also undefined to trigger the error
     mockRequest.user = undefined;
 
     await expect(
@@ -138,7 +136,6 @@ describe("processChunkUpload", () => {
   });
 
   test("should process final chunk, create batch, extract files, upload to MinIO, and enqueue jobs", async () => {
-    // Make it the last chunk
     mockRequest.body = {
       uploadId: "test-upload-id",
       chunkIndex: "0",
@@ -170,7 +167,6 @@ describe("processChunkUpload", () => {
       { recursive: true, force: true },
     );
 
-    // Assert that a batch is created
     expect(createBatch).toHaveBeenCalledWith("mock-user-id");
 
     expect(extractZipEntries).toHaveBeenCalledWith(
@@ -208,7 +204,6 @@ describe("processChunkUpload", () => {
         24 * 60 * 60,
       );
 
-      // Assert that fileProcessingQueue.add is called with the batchId
       expect(fileProcessingQueue.add).toHaveBeenCalledWith(
         "processFile",
         expect.objectContaining({
