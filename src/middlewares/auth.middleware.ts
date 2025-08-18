@@ -16,9 +16,7 @@ interface JwtPayload {
  */
 export const protect = asyncHandler(
   async (req: Request, res: Response, next: NextFunction) => {
-    console.log("protected route only");
     const token = req.cookies.accessToken;
-    console.log("token found: ", token);
     if (!token) {
       res.status(401);
       throw new Error("Not authorized, no token found");
@@ -31,7 +29,6 @@ export const protect = asyncHandler(
         res.status(404);
         throw new Error("User not found");
       }
-      console.log("user: ", user.id);
       (req as AuthRequest).user = user;
       next();
     } catch (error: unknown) {
@@ -41,5 +38,5 @@ export const protect = asyncHandler(
         res.status(400).json({ message: "Something went wrong" });
       }
     }
-  },
+  }
 );

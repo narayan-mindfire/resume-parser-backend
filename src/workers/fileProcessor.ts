@@ -36,7 +36,7 @@ async function runOCR(imagePath: string, tempDir: string): Promise<string> {
           return reject(err);
         }
         resolve(stdout);
-      },
+      }
     );
   });
 }
@@ -56,7 +56,6 @@ export const processor = async (job: Job<CombinedJob>) => {
     batchId,
     presignedUrl,
   } = job.data;
-  console.log(`Start processing: ${fileName}`);
 
   await redisClient.set(
     `status:${trackingKey}`,
@@ -67,7 +66,7 @@ export const processor = async (job: Job<CombinedJob>) => {
       timestamp: Date.now(),
     }),
     "EX",
-    24 * 60 * 60,
+    24 * 60 * 60
   );
   const tempDir = path.join(__dirname, "../../temp_ocr");
   if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
@@ -96,11 +95,10 @@ export const processor = async (job: Job<CombinedJob>) => {
         timestamp: Date.now(),
       }),
       "EX",
-      24 * 60 * 60,
+      24 * 60 * 60
     );
     return;
   }
-  console.log(`Downloaded to ${localFilePath}`);
 
   let fullText = "";
 
@@ -109,10 +107,8 @@ export const processor = async (job: Job<CombinedJob>) => {
       const pdfBuffer = fs.readFileSync(localFilePath);
       const pdfData = await pdf(pdfBuffer);
       if (pdfData.text && pdfData.text.trim().length > 50) {
-        console.log("Extracted text directly from PDF (no OCR needed).");
         fullText = pdfData.text;
       } else {
-        console.log("PDF text too short, falling back to OCR...");
         await new Promise<void>((resolve, reject) => {
           exec(
             `docker run --rm -v ${tempDir}:/data minidocks/poppler pdftoppm /data/${fileName} /data/${baseName} -png`,
@@ -122,7 +118,7 @@ export const processor = async (job: Job<CombinedJob>) => {
                 return reject(err);
               }
               resolve();
-            },
+            }
           );
         });
         const pngFiles = fs
@@ -146,7 +142,7 @@ export const processor = async (job: Job<CombinedJob>) => {
           timestamp: Date.now(),
         }),
         "EX",
-        24 * 60 * 60,
+        24 * 60 * 60
       );
       return;
     }
@@ -165,13 +161,11 @@ export const processor = async (job: Job<CombinedJob>) => {
           timestamp: Date.now(),
         }),
         "EX",
-        24 * 60 * 60,
+        24 * 60 * 60
       );
       return;
     }
   }
-
-  console.log(`Extracted text:\n${fullText}`);
 
   fs.readdirSync(tempDir)
     .filter((f) => f.startsWith(baseName))
@@ -189,7 +183,7 @@ export const processor = async (job: Job<CombinedJob>) => {
         timestamp: Date.now(),
       }),
       "EX",
-      24 * 60 * 60,
+      24 * 60 * 60
     );
     const text = fullText;
 
@@ -210,9 +204,6 @@ export const processor = async (job: Job<CombinedJob>) => {
       },
     });
     resumeId = resume.id;
-    console.log(
-      `Started processing for ${sanitizedFileName} with DB ID: ${resumeId}`,
-    );
     const parsed = parseResumeText(text);
 
     await resumeRepository.update(resumeId, {
@@ -226,10 +217,6 @@ export const processor = async (job: Job<CombinedJob>) => {
       processingStatus: "completed",
     });
 
-    console.log(
-      `Successfully parsed and stored resume for ${sanitizedFileName} in PostgreSQL.`,
-    );
-
     await redisClient.set(
       `status:${trackingKey}`,
       JSON.stringify({
@@ -240,10 +227,9 @@ export const processor = async (job: Job<CombinedJob>) => {
         timestamp: Date.now(),
       }),
       "EX",
-      24 * 60 * 60,
+      24 * 60 * 60
     );
 
-    // Publish notification with uploadId for Socket.io routing
     await redisClient.publish(
       "job-updates",
       JSON.stringify({
@@ -255,7 +241,7 @@ export const processor = async (job: Job<CombinedJob>) => {
         resumeId: resumeId,
         data: parsed,
         timestamp: Date.now(),
-      }),
+      })
     );
 
     const batchKey = `batch_count:${batchId}`;
@@ -263,14 +249,13 @@ export const processor = async (job: Job<CombinedJob>) => {
     const remainingJobs = await redisClient.decr(batchKey);
 
     if (remainingJobs === 0) {
-      console.log(`Batch ${batchId} is complete. Publishing event.`);
       await redisClient.publish(
         "batch-updates",
         JSON.stringify({
           batchId,
           status: "complete",
           timestamp: Date.now(),
-        }),
+        })
       );
       await redisClient.del(batchKey);
     }
@@ -283,7 +268,7 @@ export const processor = async (job: Job<CombinedJob>) => {
       await resumeRepository.updateStatusAndError(
         resumeId,
         "failed",
-        error instanceof Error ? error.message : "Unknown error",
+        error instanceof Error ? error.message : "Unknown error"
       );
 
       await redisClient.set(
@@ -297,7 +282,7 @@ export const processor = async (job: Job<CombinedJob>) => {
           timestamp: Date.now(),
         }),
         "EX",
-        24 * 60 * 60,
+        24 * 60 * 60
       );
 
       await redisClient.publish(
@@ -311,7 +296,7 @@ export const processor = async (job: Job<CombinedJob>) => {
           error: error instanceof Error ? error.message : "Unknown error",
           resumeId: resumeId,
           timestamp: Date.now(),
-        }),
+        })
       );
     }
 

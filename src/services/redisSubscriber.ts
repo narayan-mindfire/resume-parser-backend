@@ -34,13 +34,11 @@ export const initializeRedisSubscriber = (io: SocketIOServer) => {
             timestamp: Date.now(),
             ...(status === "completed" ? { data } : { error }),
           };
-          console.log(`Broadcasting ${eventType} to upload room: ${uploadId}`);
           io.to(uploadId).emit(eventType, eventData);
         }
       } else if (channel === "job-matches") {
         const { trackingKey, matchResult, resumeId } = notification;
         if (trackingKey) {
-          console.log(`Broadcasting job-matched to room: ${trackingKey}`);
           io.to(trackingKey).emit("job-matched", {
             resumeId,
             matchResult,
@@ -50,7 +48,6 @@ export const initializeRedisSubscriber = (io: SocketIOServer) => {
       } else if (channel === "batch-updates") {
         const { batchId, status } = notification;
         if (status === "complete") {
-          console.log(`Broadcasting batch-complete to room: ${batchId}`);
           io.to(batchId).emit("batch-complete", { batchId, status });
         }
       }

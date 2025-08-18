@@ -51,7 +51,6 @@ describe("Resume Parser Utilities", () => {
 
   test("parseResumeText should correctly extract all resume fields", () => {
     const parsedData: ParsedResume = parseResumeText(mockResumeText);
-    console.log("phone:", parsedData.phone);
     expect(parsedData.name).toBe("John Doe");
     expect(parsedData.email).toBe("john.doe@example.com");
     expect(parsedData.phone?.trim()).toBe("8898989898");
@@ -62,18 +61,18 @@ describe("Resume Parser Utilities", () => {
         "react",
         "node.js",
         "docker",
-      ]),
+      ])
     );
     expect(parsedData.education).toEqual(
       expect.arrayContaining([
         expect.stringContaining("Bachelor of Science in Computer Science"),
-      ]),
+      ])
     );
     expect(parsedData.experience).toEqual(
       expect.arrayContaining([
         expect.stringContaining("Software Engineer"),
         expect.stringContaining("Junior Developer"),
-      ]),
+      ])
     );
 
     expect(parsedData.totalExperienceYears).toBeCloseTo(3.58, 2);

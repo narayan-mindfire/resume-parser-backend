@@ -8,7 +8,6 @@ export const fetchAllResumes = async (req: Request, res: Response) => {
 
 export const fetchResumeById = async (req: Request, res: Response) => {
   const resumeId = req.params.id;
-  console.log("id received: ", resumeId);
   if (resumeId) {
     const resume = await resumeRepository.findById(resumeId);
     if (resume) {

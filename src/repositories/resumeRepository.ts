@@ -62,7 +62,7 @@ class ResumeRepository {
   async updateStatusAndError(
     id: string,
     status: string,
-    errorMessage?: string,
+    errorMessage?: string
   ): Promise<Resume> {
     return prisma.resume.update({
       where: { id },
@@ -74,9 +74,6 @@ class ResumeRepository {
   }
 
   async fetchInsights(batchId: string): Promise<Insights> {
-    console.log("batchId: ", batchId);
-
-    // 1. Calculate Average Experience
     const avgExperienceResult: { average: number }[] = await prisma.$queryRaw`
     SELECT AVG(COALESCE("total_experience_years", 0))::float AS average
     FROM "resumes"
@@ -84,9 +81,7 @@ class ResumeRepository {
   `;
 
     const averageExperience = avgExperienceResult[0]?.average || 0;
-    console.log("got data: ", averageExperience);
 
-    // 2. Find Top Skills
     const topSkillsResult: { skill: string; count: number }[] =
       await prisma.$queryRaw`
     SELECT

@@ -46,6 +46,7 @@
     "adm-zip": "^0.5.16",
     "bcrypt": "^6.0.0",
     "bullmq": "^5.56.9",
+    "cloudinary": "^1.41.3",
     "compromise": "^14.14.4",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",

@@ -14,25 +14,25 @@ export const createSocketServer = (server: HttpServer) => {
   });
 
   io.on("connection", (socket) => {
-    console.log("Client connected:", socket.id);
+    console.info("Client connected:", socket.id);
 
     socket.on("join-upload", (uploadId: string) => {
       socket.join(uploadId);
-      console.log(`Client joined upload room: ${uploadId}`);
+      console.info(`Client joined upload room: ${uploadId}`);
     });
 
     socket.on("join-match", (trackingKey: string) => {
       socket.join(trackingKey);
-      console.log(`Client joined job matching room: ${trackingKey}`);
+      console.info(`Client joined job matching room: ${trackingKey}`);
     });
 
     socket.on("join-batch", (batchId: string) => {
       socket.join(batchId);
-      console.log(`Client joined batch room: ${batchId}`);
+      console.info(`Client joined batch room: ${batchId}`);
     });
 
     socket.on("disconnect", () => {
-      console.log("Client disconnected:", socket.id);
+      console.info("Client disconnected:", socket.id);
     });
   });
 

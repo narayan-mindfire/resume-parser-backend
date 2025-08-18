@@ -11,11 +11,8 @@ import { AuthRequest } from "../types/types";
 import { create as createBatch } from "../repositories/batch.repository";
 
 export const processChunkUpload = async (req: Request, res: Response) => {
-  console.log("checking in!");
   const { uploadId, chunkIndex, totalChunks, fileName } = req.body;
   const userId = (req as AuthRequest).user?.id;
-
-  console.log("user id: ", userId);
 
   if (
     !req.file ||
@@ -63,7 +60,7 @@ export const processChunkUpload = async (req: Request, res: Response) => {
   const extractedFiles = extractZipEntries(
     outputPath,
     extractTo,
-    validExtensions,
+    validExtensions
   );
 
   fs.unlinkSync(outputPath);
@@ -82,7 +79,7 @@ export const processChunkUpload = async (req: Request, res: Response) => {
     `batch_count:${batchId}`,
     totalFiles,
     "EX",
-    24 * 60 * 60,
+    24 * 60 * 60
   );
 
   for (const file of extractedFiles) {
@@ -96,7 +93,7 @@ export const processChunkUpload = async (req: Request, res: Response) => {
       "GET",
       bucketName,
       objectName,
-      24 * 60 * 60 * 5,
+      24 * 60 * 60 * 5
     );
 
     urls.push(presignedUrl);
@@ -108,7 +105,7 @@ export const processChunkUpload = async (req: Request, res: Response) => {
         status: "uploaded",
         timestamp: Date.now(),
         trackingKey,
-      }),
+      })
     );
 
     // Store file status for tracking
@@ -121,7 +118,7 @@ export const processChunkUpload = async (req: Request, res: Response) => {
         timestamp: Date.now(),
       }),
       "EX",
-      24 * 60 * 60,
+      24 * 60 * 60
     );
 
     await fileProcessingQueue.add("processFile", {

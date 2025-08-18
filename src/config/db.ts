@@ -12,7 +12,7 @@ const pool = new Pool({
 });
 
 pool.on("connect", (_client: PoolClient) => {
-  console.log("New PostgreSQL client connected");
+  console.info("New PostgreSQL client connected");
 });
 
 pool.on("error", (err: Error) => {

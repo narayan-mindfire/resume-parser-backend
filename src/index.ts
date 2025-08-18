@@ -12,9 +12,8 @@ const io = createSocketServer(server);
 
 initializeRedisSubscriber(io);
 
-const PORT = process.env.PORT || 5003;
+const PORT = process.env.PORT;
 
 server.listen(PORT, () => {
-  console.log(`Server is running at http://localhost:${PORT}`);
-  console.log(`Socket.io server initialized`);
+  console.info(`Server is running at http://localhost:${PORT}`);
 });

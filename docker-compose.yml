@@ -1,4 +1,30 @@
 services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: resume-parser-backend:latest
+    ports:
+      - "5003:5003"
+    env_file:
+      - .env
+    depends_on:
+      - redis-stack
+      - postgres
+      - minio
+
+  worker:
+    build:
+      context: .
+      dockerfile: Worker.Dockerfile
+    image: resume-parser-worker:latest
+    env_file:
+      - .env
+    depends_on:
+      - redis-stack
+      - postgres
+      - minio
+
   minio:
     image: minio/minio
     container_name: minio
@@ -41,7 +67,6 @@ services:
       POSTGRES_PASSWORD: postgres123
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
 
   pgadmin:
@@ -58,3 +83,4 @@ services:
 volumes:
   redis-data:
   postgres-data:
+  minio-data:
